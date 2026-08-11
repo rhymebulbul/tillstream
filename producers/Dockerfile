@@ -1,4 +1,4 @@
-FROM golang:1.22-bullseye AS builder
+FROM golang:latest AS builder
 WORKDIR /app
 COPY . .
 # Pin the confluent-kafka-go version to avoid bleeding-edge go 1.25 requirement
