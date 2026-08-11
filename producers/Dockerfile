@@ -9,7 +9,7 @@ RUN go get github.com/hamba/avro/v2@v2.22.0
 RUN go mod tidy
 RUN go build -o /tillstream-producer ./cmd/producer/main.go
 
-FROM debian:bullseye-slim
+FROM debian:bookworm-slim
 WORKDIR /
 RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /tillstream-producer /tillstream-producer
