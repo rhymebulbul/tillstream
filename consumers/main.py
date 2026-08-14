@@ -9,7 +9,11 @@ from prometheus_client import start_http_server, Histogram
 from confluent_kafka import Consumer, Producer
 from confluent_kafka.schema_registry import SchemaRegistryClient
 
-LATENCY_HISTOGRAM = Histogram('tillstream_message_latency_ms', 'End-to-End Latency in ms')
+LATENCY_HISTOGRAM = Histogram(
+    'tillstream_message_latency_ms',
+    'End-to-End Latency in ms',
+    buckets=[1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000]
+)
 
 def main():
     # Start Prometheus Metrics Server
