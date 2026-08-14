@@ -2,6 +2,8 @@ package kafka
 
 import (
 	"encoding/binary"
+	"strconv"
+	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/hamba/avro/v2"
@@ -46,6 +48,9 @@ func (tp *TillProducer) ProduceMessage(topic string, key string, schemaID int, a
 		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
 		Key:            []byte(key), // TILL-08 (Phase 2): Keying by TenantID for partitioning
 		Value:          finalPayload,
+		Headers: []kafka.Header{
+			{Key: "generation_time_ms", Value: []byte(strconv.FormatInt(time.Now().UnixMilli(), 10))},
+		},
 	}, deliveryChan)
 	if err != nil {
 		return err

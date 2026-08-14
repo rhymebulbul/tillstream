@@ -4,10 +4,17 @@ import json
 import io
 import fastavro
 import random
+import time
+from prometheus_client import start_http_server, Histogram
 from confluent_kafka import Consumer, Producer
 from confluent_kafka.schema_registry import SchemaRegistryClient
 
+LATENCY_HISTOGRAM = Histogram('tillstream_message_latency_ms', 'End-to-End Latency in ms')
+
 def main():
+    # Start Prometheus Metrics Server
+    start_http_server(8000)
+    
     # 1. Connect to Schema Registry
     sr_conf = {'url': os.environ.get("SCHEMA_REGISTRY_URL", "http://schema-registry:8081")}
     sr_client = SchemaRegistryClient(sr_conf)
@@ -71,6 +78,19 @@ def main():
                 dlq_producer.produce('orders-dlq', value=payload, key=msg.key())
                 dlq_producer.poll(0)
                 continue
+                
+            # 4. Calculate End-to-End Latency if header exists
+            if msg.headers():
+                for k, v in msg.headers():
+                    if k == 'generation_time_ms':
+                        try:
+                            gen_time = int(v.decode('utf-8'))
+                            latency_ms = int(time.time() * 1000) - gen_time
+                            if latency_ms >= 0:
+                                LATENCY_HISTOGRAM.observe(latency_ms)
+                        except ValueError:
+                            pass
+            
             
             print(f"✅ Processed Order: {record.get('order_id')} | Tenant: {record.get('tenant_id')} | Price: ${record.get('total_price')} | Loyalty Pts: {record.get('loyalty_points')}")
                 

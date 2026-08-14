@@ -87,7 +87,7 @@ func main() {
 
 	fmt.Printf("Registered Schemas - Orders ID: %d, Payments ID: %d\n", orderSchemaID, paymentSchemaID)
 
-	for i := 0; i < 20; i++ {
+	for {
 		order, payment := generator.GenerateOrderFlow()
 
 		// Produce Order

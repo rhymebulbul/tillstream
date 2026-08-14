@@ -63,6 +63,8 @@ services:
   consumer:
     build: ./consumers
     container_name: consumer
+    ports:
+      - "8000:8000"
     depends_on:
       - broker
       - schema-registry
