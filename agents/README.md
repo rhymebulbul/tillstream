@@ -47,3 +47,13 @@ Switch back to your first terminal. You will see the agent:
 2. Fetch the Avro Schema from the Schema Registry.
 3. Prompt your local Ollama model to generate the Python fix.
 4. Execute the fix, successfully coerce the data types, and replay it to the main `orders` topic!
+
+### Screenshots
+
+> The agent receives a corrupted message, fetches the Avro schema, and prompts the local Ollama model to generate a Python repair function:
+
+![Agent code generation via Ollama](../docs/assets/agent-healing-codegen.png)
+
+> The generated code is executed in a sandbox — data types are coerced, the payload is re-serialized, and replayed to the main topic:
+
+![Agent self-healing success](../docs/assets/agent-healing-success.png)

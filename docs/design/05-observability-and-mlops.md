@@ -178,6 +178,8 @@ TillStream provisions Grafana with the **Kafka Exporter Overview** dashboard via
 | End-to-End Latency p99 | `histogram_quantile(0.99, ...)` | > 50ms |
 | DLQ Message Rate | Rate on `orders-dlq` topic | Any non-zero value sustained > 1min |
 
+![Prometheus latency metrics query](../evidence/latency-metrics.png)
+
 ---
 
 ## 3. Data Observability: Real-Time Contract Enforcement

@@ -17,6 +17,19 @@ spark = SparkSession.builder \
 
 print("🚀 Spark Session Initialized with Iceberg & MinIO bindings!")
 
+# Create table if not exists (Required for streaming)
+spark.sql("""
+CREATE TABLE IF NOT EXISTS lakehouse.raw.orders (
+    key BINARY,
+    value BINARY,
+    topic STRING,
+    partition INT,
+    offset LONG,
+    timestamp TIMESTAMP,
+    timestampType INT
+) USING iceberg
+""")
+
 # 1. Read from Kafka
 kafka_df = spark.readStream \
     .format("kafka") \
@@ -34,7 +47,7 @@ kafka_df = spark.readStream \
 query = kafka_df.writeStream \
     .format("iceberg") \
     .outputMode("append") \
-    .trigger(processingTime="1 minute") \
+    .trigger(processingTime="5 seconds") \
     .option("path", "lakehouse.raw.orders") \
     .option("checkpointLocation", "s3a://lakehouse/checkpoints/orders") \
     .start()
