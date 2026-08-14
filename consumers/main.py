@@ -79,7 +79,14 @@ def main():
             # Deserialize the Avro binary payload dynamically
             avro_data = payload[5:]
             bytes_reader = io.BytesIO(avro_data)
-            record = fastavro.schemaless_reader(bytes_reader, schema_cache[schema_id])
+            try:
+                record = fastavro.schemaless_reader(bytes_reader, schema_cache[schema_id])
+            except Exception as e:
+                print(f"💀 POISON PILL DETECTED! Deserialization Error: {e}. Routing to DLQ...")
+                dlq_producer.produce('orders-dlq', value=payload, key=msg.key(), headers=[('error', str(e).encode('utf-8'))])
+                dlq_producer.poll(0)
+                continue
+                
             # Accumulate into micro-batches for Great Expectations
             batch_records.append(record)
             batch_msgs.append((msg, payload, record))
