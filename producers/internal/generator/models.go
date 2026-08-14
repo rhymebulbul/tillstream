@@ -3,10 +3,10 @@ package generator
 type Order struct {
 	OrderID    string  `avro:"order_id"`
 	TenantID   string  `avro:"tenant_id"`
-	StoreID    string  `avro:"store_id"`
-	CustomerID string  `avro:"customer_id"`
-	TotalItems int     `avro:"total_items"`
-	TotalPrice float64 `avro:"total_price"`
+	StoreID       string  `avro:"store_id"`
+	CustomerID    string  `avro:"customer_id"`
+	LoyaltyPoints int     `avro:"loyalty_points"`
+	TotalPrice    float64 `avro:"total_price"`
 	CreatedAt  string  `avro:"created_at"`
 }
 

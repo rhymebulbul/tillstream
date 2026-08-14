@@ -22,7 +22,7 @@ const orderSchemaStr = `
     {"name": "tenant_id", "type": "string"},
     {"name": "store_id", "type": "string"},
     {"name": "customer_id", "type": "string"},
-    {"name": "total_items", "type": "int"},
+    {"name": "loyalty_points", "type": "int", "default": 0},
     {"name": "total_price", "type": "double"},
     {"name": "created_at", "type": "string"}
   ]

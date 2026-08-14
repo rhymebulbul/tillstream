@@ -29,10 +29,10 @@ func GenerateOrderFlow() (Order, Payment) {
 	order := Order{
 		OrderID:    orderID,
 		TenantID:   tenantID,
-		StoreID:    storeID,
-		CustomerID: gofakeit.UUID(),
-		TotalItems: rand.Intn(10) + 1,
-		TotalPrice: totalPrice,
+		StoreID:       storeID,
+		CustomerID:    gofakeit.UUID(),
+		LoyaltyPoints: rand.Intn(100),
+		TotalPrice:    totalPrice,
 		CreatedAt:  time.Now().UTC().Format(time.RFC3339),
 	}
 
