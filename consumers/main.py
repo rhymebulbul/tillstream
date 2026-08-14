@@ -3,7 +3,8 @@ import struct
 import json
 import io
 import fastavro
-from confluent_kafka import Consumer
+import random
+from confluent_kafka import Consumer, Producer
 from confluent_kafka.schema_registry import SchemaRegistryClient
 
 def main():
@@ -14,9 +15,13 @@ def main():
     # Cache to avoid repeatedly fetching schemas from the registry
     schema_cache = {}
 
-    # 2. Connect to Kafka
+    # 2. Connect to Kafka (Consumer & DLQ Producer)
+    kafka_broker = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "broker:29092")
+    
+    dlq_producer = Producer({'bootstrap.servers': kafka_broker})
+    
     consumer_conf = {
-        'bootstrap.servers': os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "broker:29092"),
+        'bootstrap.servers': kafka_broker,
         'group.id': 'python-orders-consumer',
         'auto.offset.reset': 'earliest'
     }
@@ -60,12 +65,20 @@ def main():
             bytes_reader = io.BytesIO(avro_data)
             record = fastavro.schemaless_reader(bytes_reader, schema_cache[schema_id])
             
+            # 3. Simulate a flaky downstream database for our high-volume tenant
+            if record.get('tenant_id') == 'TENANT_FLAGSHIP_1' and random.random() < 0.2:
+                print(f"❌ DB TIMEOUT! Failed to process Order {record.get('order_id')}. Routing to DLQ...")
+                dlq_producer.produce('orders-dlq', value=payload, key=msg.key())
+                dlq_producer.poll(0)
+                continue
+            
             print(f"✅ Processed Order: {record.get('order_id')} | Tenant: {record.get('tenant_id')} | Price: ${record.get('total_price')} | Loyalty Pts: {record.get('loyalty_points')}")
                 
     except KeyboardInterrupt:
         pass
     finally:
         consumer.close()
+        dlq_producer.flush()
         print("Consumer shut down.")
 
 if __name__ == '__main__':
