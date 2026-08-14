@@ -15,10 +15,22 @@ type TillProducer struct {
 }
 
 func NewTillProducer(brokerURL, srURL string) (*TillProducer, error) {
-	p, err := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": brokerURL})
+	p, err := kafka.NewProducer(&kafka.ConfigMap{
+		"bootstrap.servers":            brokerURL,
+		"linger.ms":                    5,
+		"batch.num.messages":           10000,
+		"queue.buffering.max.messages": 2000000,
+	})
 	if err != nil {
 		return nil, err
 	}
+
+	// Drain delivery reports asynchronously to prevent queue backup
+	go func() {
+		for e := range p.Events() {
+			_ = e
+		}
+	}()
 
 	return &TillProducer{
 		producer: p,
@@ -43,7 +55,6 @@ func (tp *TillProducer) ProduceMessage(topic string, key string, schemaID int, a
 
 	finalPayload := EncodeAvroWithMagicByte(schemaID, avroBytes)
 
-	deliveryChan := make(chan kafka.Event)
 	err = tp.producer.Produce(&kafka.Message{
 		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
 		Key:            []byte(key), // TILL-08 (Phase 2): Keying by TenantID for partitioning
@@ -51,17 +62,9 @@ func (tp *TillProducer) ProduceMessage(topic string, key string, schemaID int, a
 		Headers: []kafka.Header{
 			{Key: "generation_time_ms", Value: []byte(strconv.FormatInt(time.Now().UnixMilli(), 10))},
 		},
-	}, deliveryChan)
-	if err != nil {
-		return err
-	}
-
-	e := <-deliveryChan
-	m := e.(*kafka.Message)
-	if m.TopicPartition.Error != nil {
-		return m.TopicPartition.Error
-	}
-	return nil
+	}, nil) // Asynchronous delivery
+	
+	return err
 }
 
 func (tp *TillProducer) Close() {

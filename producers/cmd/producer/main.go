@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"tillstream/producers/internal/generator"
 	"tillstream/producers/internal/kafka"
@@ -86,13 +87,14 @@ func main() {
 
 	fmt.Printf("Registered Schemas - Orders ID: %d, Payments ID: %d\n", orderSchemaID, paymentSchemaID)
 
-	concurrency := 10
+	concurrency := 1000
 	fmt.Printf("Starting benchmark with %d concurrent workers...\n", concurrency)
 
 	for i := 0; i < concurrency; i++ {
 		go func(workerID int) {
+			localGen := generator.NewGenerator(int64(workerID) + time.Now().UnixNano())
 			for {
-				order, payment := generator.GenerateOrderFlow()
+				order, payment := localGen.GenerateOrderFlow()
 
 				// Produce Order
 				err = producer.ProduceMessage("orders", order.TenantID, orderSchemaID, orderAvro, order)
