@@ -1,25 +1,41 @@
-# Design Doc 02: Data Governance & Schema Evolution
+# Design Document 02: Data Governance, Serialization, & Schema Evolution
 
-## Motivation
-In a distributed streaming architecture, producers and consumers are inherently decoupled. If a producer alters the data structure (e.g., renaming a field, changing a type, or removing a mandatory column), downstream consumers will instantly fail, causing a cascading pipeline outage. 
+**Author:** Staff Data Engineer
+**Status:** Approved
+**Last Updated:** August 2026
 
-To solve this, TillStream employs strict data contracts via **Confluent Schema Registry** and **Apache Avro**.
+## 1. Executive Summary
+In a decoupled microservices architecture, schema drift is the primary cause of pipeline outages. TillStream implements a centralized Schema Registry pattern enforcing strict Apache Avro data contracts. This design prevents "poison pills" from entering the event stream and details our safe schema evolution strategies.
 
-## Architecture & Implementation
+## 2. Serialization Format Trade-offs
+*   **JSON:** Human-readable, but highly inefficient. Lacks strict typing, resulting in bloated payloads (keys repeated in every message). Rejected.
+*   **Protobuf:** Excellent CPU efficiency and typing. However, Protobuf lacks a self-describing container format suitable for Data Lakes unless heavily modified.
+*   **Decision (Apache Avro):** Selected for its compact binary format and deep integration with Hadoop/Spark ecosystems. Avro stores the schema alongside the data in batch files, making it the industry standard for Lakehouse architectures.
 
-### 1. Apache Avro Serialization
-Instead of sending raw, bloated JSON over the wire, the Golang Producer serializes all messages into binary Avro. 
-*   **Efficiency:** Avro drastically reduces payload size, maximizing Kafka's throughput and minimizing network I/O.
-*   **Strict Typing:** Every field is explicitly typed in a `.avsc` file.
+## 3. Schema Registry Architecture
+TillStream utilizes Confluent Schema Registry as the central source of truth.
 
-### 2. Confluent Schema Registry
-The Schema Registry sits alongside Kafka. Before the Go Producer can send a message, it must register its schema with the Registry. 
-*   **The Magic Byte:** The producer prepends a 5-byte Confluent header to the binary payload:
-    *   `Byte 0`: Magic Byte (always `0`).
-    *   `Bytes 1-4`: The 32-bit Schema ID registered in the Registry.
-*   **Dynamic Deserialization:** The Python consumer receives the binary, strips the first 5 bytes, uses the ID to query the Schema Registry, and perfectly deserializes the payload—even if it has never seen that schema before.
+### 3.1 The Wire Format (Magic Byte Pattern)
+To minimize payload bloat, the actual schema is *not* sent with every message. Instead, the producer sends a 5-byte header prepended to the binary payload:
+1.  **Byte 0:** Magic Byte (Hardcoded to `0x00`). Identifies the payload as Confluent Avro.
+2.  **Bytes 1-4:** 32-bit Integer representing the globally unique Schema ID.
+3.  **Bytes 5+:** The raw Avro binary data.
 
-### 3. Schema Evolution & Compatibility
-TillStream is configured to reject breaking changes (e.g., removing a required field).
-*   **Conflict Prevention:** If a developer attempts to push a schema that violates backward compatibility, the Registry returns an `HTTP 409 Conflict`, physically preventing the poison pill from entering the stream.
-*   **Forward & Backward Compatibility:** The system supports safe schema evolution. For example, adding a new field is permitted *only* if a `default` value is provided, ensuring older consumers don't crash when reading new messages.
+### 3.2 High-Availability & Caching Strategy
+If the Schema Registry goes down, the pipeline must not halt.
+*   **Producer Cache:** Producers cache Schema IDs locally. A network call to the registry only occurs on application startup or when a new schema is registered.
+*   **Consumer Cache:** Consumers maintain an LRU cache of `Schema ID -> Deserializer`. When a new ID is encountered, it fetches it from the registry and caches it permanently.
+
+## 4. Schema Evolution Rules & Compatibility Modes
+To prevent breaking changes, the Schema Registry enforces `BACKWARD` compatibility mode by default.
+
+### 4.1 Backward Compatibility (Default)
+Consumers using the *new* schema can read data produced by the *old* schema.
+*   **Allowed:** Deleting a field (consumer ignores it), adding an optional field (with a `default` value).
+*   **Rejected:** Adding a mandatory field without a default, renaming a field, changing data types (e.g., `string` to `int`).
+
+### 4.2 Handling Conflict (HTTP 409)
+If a developer's CI/CD pipeline attempts to register an incompatible schema, the Registry returns an `HTTP 409 Conflict`. The deployment fails, preventing the poison pill from ever reaching the production Kafka brokers.
+
+## 5. Security & Access Control (ACLs)
+*   **Subject-Level RBAC:** Only authorized CI/CD service accounts have `WRITE` access to the Schema Registry. Producers and Consumers operate with strictly `READ-ONLY` credentials to prevent runtime schema corruption.

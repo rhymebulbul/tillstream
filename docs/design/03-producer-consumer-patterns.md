@@ -1,21 +1,38 @@
-# Design Doc 03: Producer-Consumer Patterns & Resilience
+# Design Document 03: Producer/Consumer Patterns & Resilience Engineering
 
-## Motivation
-A data pipeline is only as reliable as its ability to handle failure and traffic spikes. TillStream implements specific patterns to ensure zero data loss during infrastructure outages and deterministic routing for high-volume tenants.
+**Author:** Staff Data Engineer
+**Status:** Approved
+**Last Updated:** August 2026
 
-## 1. Partitioning & Data Skew
-In B2B platforms, traffic is rarely distributed evenly. Often, a few "Flagship" tenants generate 80% of the volume.
-*   **Tenant-Based Keying:** The Go Producer hashes the `tenant_id` and uses it as the Kafka Message Key. 
-*   **Deterministic Routing:** This guarantees that all events for a specific tenant are routed to the *same* Kafka partition.
-*   **Ordering Guarantees:** By ensuring a tenant's data is isolated to a single partition, we guarantee strict chronological ordering for that tenant's events, which is critical for transactional state machines (e.g., calculating loyalty points).
+## 1. Executive Summary
+This document outlines the distributed systems patterns utilized in the TillStream ingestion and consumption layers to ensure exactly-once semantics (EOS), mitigate data skew ("noisy neighbor" problems), and handle downstream infrastructure degradation via Dead Letter Queues (DLQs).
 
-## 2. The Dead Letter Queue (DLQ) Pattern
-Downstream databases are inherently flaky. If the Python Consumer encounters a database timeout, crashing the consumer would halt the entire pipeline (Head-of-Line blocking).
-*   **Non-Blocking Retries:** When TillStream simulates a database timeout (triggered intentionally via chaos engineering), the consumer catches the error.
-*   **Quarantine Routing:** The consumer extracts the raw, un-deserialized payload and forwards it to an `orders-dlq` topic.
-*   **Resumption:** The consumer immediately resumes processing the main topic. A secondary, isolated microservice can later re-process the DLQ at its own pace.
+## 2. Producer Strategy & Data Skew Management
+In B2B SaaS platforms, traffic follows a Pareto distribution (e.g., 20% of tenants generate 80% of the data). A naive Round-Robin partitioning strategy would balance load but destroy event ordering.
 
-## 3. Infrastructure Resilience (Chaos Engineering)
-TillStream is resilient against total broker failure.
-*   **Producer Buffering:** If the Kafka Broker goes offline, the Go producer automatically buffers incoming events in memory, preventing upstream API timeouts.
-*   **Consumer Offsets:** The Python consumer tracks its progress using committed offsets. If the cluster crashes, the consumer halts; upon revival, it queries Kafka for its last committed offset and resumes processing exactly where it left off, achieving At-Least-Once delivery semantics.
+### 2.1 Deterministic Hashing
+*   Messages are strictly keyed by `tenant_id`. 
+*   Kafka uses the `murmur2` algorithm to hash the key: `hash("TENANT_FLAGSHIP_1") % num_partitions`.
+*   **Guarantee:** All events for a specific tenant are routed to the exact same partition, guaranteeing chronological ordering necessary for accurate state machine transitions (e.g., wallet balance updates).
+
+### 2.2 Mitigating Hot Partitions (The Salted Key Pattern)
+If `TENANT_FLAGSHIP_1` exceeds the throughput capacity of a single partition (e.g., > 10MB/s), it will cause a "Hot Partition", throttling the cluster.
+*   **Future Mitigation:** If a tenant is flagged as "Flagship", the Producer appends a random salt suffix (e.g., `TENANT_FLAGSHIP_1_A`, `TENANT_FLAGSHIP_1_B`) splitting the tenant's load across a pre-defined number of partitions. The downstream consumer must then implement a K-Way Merge to reconstruct global ordering.
+
+## 3. Producer Resiliency (Idempotence & Buffering)
+*   **Exactly-Once Semantics (EOS):** The Go Producer is configured with `enable.idempotence=true` and `acks=all`. Kafka assigns a Producer ID (PID) and sequence number to each message. If a network timeout causes the producer to retry, the broker deduplicates the message based on the sequence number.
+*   **Chaos Engineering Response:** During simulated broker failure (INC-001), the producer relies on its internal `queue.buffering.max.messages` and `message.timeout.ms`. It buffers payloads in memory rather than failing the upstream HTTP request, flushing them instantly when the broker leader is re-elected.
+
+## 4. Consumer DLQ (Dead Letter Queue) Architecture
+Head-of-Line blocking occurs when a consumer cannot process a message (e.g., a downstream database is offline) and halts the entire partition.
+
+### 4.1 Transient vs Poison Failures
+*   **Poison Pills:** Un-parseable bytes or schema violations.
+*   **Transient Failures:** Database timeouts, API rate limits (HTTP 429).
+
+### 4.2 The DLQ Implementation
+Instead of crashing, the Python consumer catches the exception.
+1.  It wraps the original un-deserialized payload, the original Kafka Key, and the Exception Stack Trace into a new envelope.
+2.  It routes this envelope to the `orders-dlq` topic.
+3.  It commits the offset for the failed message on the main topic and continues processing the stream.
+4.  **DLQ Resolver Agent (Phase 9):** A separate autonomous process monitors the DLQ, parses the stack trace, and attempts automated remediation via LLM reasoning.

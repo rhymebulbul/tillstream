@@ -1,24 +1,31 @@
-# Design Doc 04: The Lakehouse Architecture
+# Design Document 04: The Lakehouse Architecture (Iceberg + Trino)
 
-## Motivation
-While Kafka is exceptional at real-time, low-latency streaming, it is fundamentally an append-only log. It is not designed for complex `JOIN`s, historical aggregations, or Data Science workloads. 
+**Author:** Staff Data Engineer
+**Status:** Approved
+**Last Updated:** August 2026
 
-To bridge this gap, TillStream implements a **Streaming Lakehouse**, decoupling cheap storage from massive compute.
+## 1. Executive Summary
+Traditional Data Warehouses (Snowflake, BigQuery) are expensive for petabyte-scale storage, while traditional Data Lakes (raw S3 buckets) suffer from "Data Swamp" symptoms (lack of ACID transactions, corrupted schemas). TillStream implements an open-source "Lakehouse" architecture, combining the cost-efficiency of S3 object storage with the transactional guarantees of a relational database.
 
-## Architecture & Implementation
+## 2. Storage & Table Format
 
-### 1. The Storage Layer (MinIO)
-*   **S3 Compatibility:** MinIO is deployed as a local, high-performance object storage layer. It provides an identical API to AWS S3, meaning code written for TillStream can be deployed directly to AWS without modification.
-*   **Cost Efficiency:** Object storage is infinitely scalable and magnitudes cheaper than traditional relational databases.
+### 2.1 MinIO (Object Storage)
+*   Provides a highly available, S3-compatible API.
+*   **Consistency Model:** Modern S3/MinIO provides strict read-after-write consistency, which is absolutely mandatory for Iceberg's optimistic concurrency control to function correctly during concurrent writes.
 
-### 2. The Table Format (Apache Iceberg)
-Dumping raw JSON/Avro files into S3 creates a "Data Swamp" (slow queries, no ACID transactions, schema chaos).
-*   **ACID Transactions:** TillStream uses **Apache Iceberg** as its open table format. Iceberg tracks metadata for every file, allowing for atomic commits, time-travel queries, and schema evolution directly on data lake storage.
+### 2.2 Apache Iceberg (Table Format)
+Dumping Parquet files directly into S3 results in extremely slow queries because the query engine must perform an `S3 LIST` across millions of objects to find relevant data.
+*   **The Metadata Tree:** Iceberg completely eliminates `S3 LIST` operations. It maintains a hierarchical metadata tree: `Metadata.json -> Manifest List -> Manifest File -> Data File (Parquet)`.
+*   **Atomic Commits:** When PySpark writes a micro-batch, it generates new Parquet files and a new `Metadata.json`. The pointer to the current snapshot is swapped atomically. If the Spark job fails mid-write, the corrupted files are simply never referenced by the metadata tree (Zero dirty reads).
+*   **Time Travel & Rollbacks:** Because old snapshots are preserved, analysts can query the lake *as it existed* at any specific timestamp, or roll back the entire table if a bad batch is ingested.
 
-### 3. The Ingestion Engine (PySpark Structured Streaming)
-*   **Micro-Batching:** A PySpark cluster subscribes to the Kafka `orders` topic. 
-*   **Direct-to-Lake:** Every 60 seconds, Spark flushes the newly arrived Kafka events directly into Iceberg tables in MinIO, formatting the underlying files as highly compressed, columnar Parquet.
+## 3. Ingestion Engine (PySpark Structured Streaming)
+*   **Trigger Interval:** `ProcessingTime='60 seconds'`. Real-time Kafka events are micro-batched to prevent the "Small Files Problem" on S3.
+*   **Checkpointing:** Spark writes offsets to a Write-Ahead Log (WAL) checkpoint directory in MinIO. If the Spark master node crashes, the replacement node reads the checkpoint and resumes exactly where it left off.
 
-### 4. The Query Engine (Trino)
-*   **Massive Parallel Processing (MPP):** Trino (formerly PrestoSQL) is deployed to sit on top of the Lakehouse.
-*   **Analyst Access:** Data Analysts and BI tools (like Tableau) connect to Trino via standard SQL. Trino distributes the query, reads the Iceberg metadata, and rapidly scans the Parquet files in MinIO to return aggregations in milliseconds.
+## 4. Analytical Query Engine (Trino)
+Trino is a Massively Parallel Processing (MPP) SQL query engine.
+*   **Architecture:** Trino consists of a single Coordinator and fleet of Workers.
+*   **Query Execution:** When an analyst executes `SELECT SUM(price) FROM iceberg.lakehouse.orders WHERE date = 'today'`, the Trino Coordinator reads the Iceberg Metadata tree. 
+*   **Predicate Pushdown:** The Coordinator extracts column statistics (Min/Max values) stored inside the Iceberg Manifests. It identifies exactly which underlying Parquet files contain data for 'today', skipping 99% of the S3 files completely (O(1) file pruning).
+*   **Worker Distribution:** The Coordinator assigns the targeted Parquet files to the Worker fleet, which streams the data into memory, performs the aggregation, and returns the scalar result in milliseconds.
