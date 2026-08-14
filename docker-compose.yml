@@ -59,6 +59,13 @@ services:
     depends_on:
       - kafka-exporter
 
+  consumer:
+    build: ./consumers
+    container_name: consumer
+    depends_on:
+      - broker
+      - schema-registry
+
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
