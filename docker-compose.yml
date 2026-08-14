@@ -56,6 +56,7 @@ services:
       - "9091:9090"
     volumes:
       - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./infra/prometheus/alert.rules:/etc/prometheus/alert.rules
     depends_on:
       - kafka-exporter
 

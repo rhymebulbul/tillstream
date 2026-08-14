@@ -1,0 +1,11 @@
+groups:
+- name: kafka_alerts
+  rules:
+  - alert: HighConsumerLag
+    expr: kafka_consumergroup_lag > 50
+    for: 30s
+    labels:
+      severity: critical
+    annotations:
+      summary: "High Consumer Lag (Group: {{ $labels.consumergroup }})"
+      description: "Consumer group {{ $labels.consumergroup }} on topic {{ $labels.topic }} has a lag of {{ $value }} messages. The consumer is falling behind the producer."
