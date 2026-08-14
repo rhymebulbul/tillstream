@@ -35,13 +35,9 @@
 ### The Agentic DLQ Resolver in Action
 
 > The agent detects a corrupted DLQ message, prompts a local Ollama LLM, and generates a `fix_payload()` function in real-time:
-
-![Agent generating repair code via local LLM](docs/assets/agent-healing-codegen.png)
-
+<img src="docs/assets/agent-healing-codegen.png" width="100%" alt="Agent generating repair code via local LLM" />
 > The generated code executes in a sandbox, coerces the data types, re-serializes to Avro, and replays the healed message:
-
-![Agent successfully self-healing the pipeline](docs/assets/agent-healing-success.png)
-
+<img src="docs/assets/agent-healing-success.png" width="100%" alt="Agent successfully self-healing the pipeline" />
 ---
 
 ## 🛠 Core Components
