@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"time"
 
 	"tillstream/producers/internal/generator"
 	"tillstream/producers/internal/kafka"
@@ -87,24 +86,29 @@ func main() {
 
 	fmt.Printf("Registered Schemas - Orders ID: %d, Payments ID: %d\n", orderSchemaID, paymentSchemaID)
 
-	for {
-		order, payment := generator.GenerateOrderFlow()
+	concurrency := 10
+	fmt.Printf("Starting benchmark with %d concurrent workers...\n", concurrency)
 
-		// Produce Order
-		err = producer.ProduceMessage("orders", order.TenantID, orderSchemaID, orderAvro, order)
-		if err != nil {
-			log.Printf("Failed to produce order: %v\n", err)
-		}
+	for i := 0; i < concurrency; i++ {
+		go func(workerID int) {
+			for {
+				order, payment := generator.GenerateOrderFlow()
 
-		// Produce Payment
-		err = producer.ProduceMessage("payments", payment.TenantID, paymentSchemaID, paymentAvro, payment)
-		if err != nil {
-			log.Printf("Failed to produce payment: %v\n", err)
-		}
+				// Produce Order
+				err = producer.ProduceMessage("orders", order.TenantID, orderSchemaID, orderAvro, order)
+				if err != nil {
+					log.Printf("Worker %d Failed to produce order: %v\n", workerID, err)
+				}
 
-		fmt.Printf("Published Avro Order & Payment for %s\n", order.TenantID)
-		time.Sleep(250 * time.Millisecond)
+				// Produce Payment
+				err = producer.ProduceMessage("payments", payment.TenantID, paymentSchemaID, paymentAvro, payment)
+				if err != nil {
+					log.Printf("Worker %d Failed to produce payment: %v\n", workerID, err)
+				}
+			}
+		}(i)
 	}
 
-	fmt.Println("Producer run complete.")
+	// Keep main thread alive
+	select {}
 }
