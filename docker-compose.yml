@@ -125,7 +125,7 @@ services:
     image: trinodb/trino:latest
     container_name: trino
     ports:
-      - "8080:8080"
+      - "8090:8080"
     volumes:
       - ./infra/trino/catalog:/etc/trino/catalog
     depends_on:
