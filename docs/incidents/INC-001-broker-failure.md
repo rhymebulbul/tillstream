@@ -17,6 +17,8 @@ At approximately 07:50 UTC, the primary (and only) Kafka broker suffered a simul
 2. **Consumer Starvation:** The Python consumer lost its data feed. Processing dropped to 0 events per second.
 3. **Observability:** Grafana dashboards correctly reflected the outage. Broker health metrics vanished, throughput lines flatlined to zero, and the system entered a critical state.
 
+![Grafana Dashboard showing outage damage](./outage-dashboard-damage.png)
+
 ## Detection
 The outage was detected instantly via the Prometheus/Grafana observability stack, specifically the "Kafka Exporter Overview" dashboard. 
 
@@ -26,6 +28,8 @@ Within seconds:
 1. The KRaft controller re-established the cluster state.
 2. The Go producer successfully re-established its TCP connection and immediately flushed its in-memory buffer.
 3. The Python consumer picked up exactly where it left off, successfully processing the backlog and draining the accumulated lag.
+
+![Grafana Dashboard showing recovery and lag draining](./outage-dashboard-recovery.png)
 
 ## Action Items
 * **Add Replica Brokers:** A single-broker cluster is a single point of failure. Future sprint plans must include horizontally scaling to a minimum 3-broker cluster with `replication.factor=3` to ensure high availability during individual node failures.
