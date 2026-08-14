@@ -5,6 +5,8 @@ import io
 import fastavro
 import random
 import time
+import pandas as pd
+import great_expectations as ge
 from prometheus_client import start_http_server, Histogram
 from confluent_kafka import Consumer, Producer
 from confluent_kafka.schema_registry import SchemaRegistryClient
@@ -42,6 +44,9 @@ def main():
 
     print("🚀 Starting dynamic Python Avro Consumer... waiting for messages.")
 
+    batch_records = []
+    batch_msgs = []
+
     try:
         while True:
             msg = consumer.poll(1.0)
@@ -75,29 +80,47 @@ def main():
             avro_data = payload[5:]
             bytes_reader = io.BytesIO(avro_data)
             record = fastavro.schemaless_reader(bytes_reader, schema_cache[schema_id])
+            # Accumulate into micro-batches for Great Expectations
+            batch_records.append(record)
+            batch_msgs.append((msg, payload, record))
             
-            # 3. Simulate a flaky downstream database for our high-volume tenant
-            if record.get('tenant_id') == 'TENANT_FLAGSHIP_1' and random.random() < 0.2:
-                print(f"❌ DB TIMEOUT! Failed to process Order {record.get('order_id')}. Routing to DLQ...")
-                dlq_producer.produce('orders-dlq', value=payload, key=msg.key())
+            if len(batch_records) >= 20:
+                # 5. Enforce Data Quality with Great Expectations (TILL-20)
+                df = pd.DataFrame(batch_records)
+                ge_df = ge.from_pandas(df)
+                
+                res_price = ge_df.expect_column_values_to_be_between('total_price', min_value=0)
+                res_loyalty = ge_df.expect_column_values_to_be_between('loyalty_points', min_value=0)
+                
+                if not res_price.success or not res_loyalty.success:
+                    print(f"🚨 DATA CONTRACT VIOLATION! Routing {len(batch_records)} records to Quarantine...")
+                    for m, p, r in batch_msgs:
+                        dlq_producer.produce('orders-quarantine', value=p, key=m.key())
+                else:
+                    # Process clean batch
+                    for m, p, r in batch_msgs:
+                        # 3. Simulate a flaky downstream database for our high-volume tenant
+                        if r.get('tenant_id') == 'TENANT_FLAGSHIP_1' and random.random() < 0.2:
+                            print(f"❌ DB TIMEOUT! Failed to process Order {r.get('order_id')}. Routing to DLQ...")
+                            dlq_producer.produce('orders-dlq', value=p, key=m.key())
+                            continue
+                            
+                        # 4. Calculate End-to-End Latency if header exists
+                        if m.headers():
+                            for k, v in m.headers():
+                                if k == 'generation_time_ms':
+                                    try:
+                                        latency_ms = int(time.time() * 1000) - int(v.decode('utf-8'))
+                                        if latency_ms >= 0:
+                                            LATENCY_HISTOGRAM.observe(latency_ms)
+                                    except ValueError:
+                                        pass
+                                        
+                        print(f"✅ Processed Order: {r.get('order_id')} | Tenant: {r.get('tenant_id')} | Price: ${r.get('total_price')} | Loyalty Pts: {r.get('loyalty_points')}")
+                        
                 dlq_producer.poll(0)
-                continue
-                
-            # 4. Calculate End-to-End Latency if header exists
-            if msg.headers():
-                for k, v in msg.headers():
-                    if k == 'generation_time_ms':
-                        try:
-                            gen_time = int(v.decode('utf-8'))
-                            latency_ms = int(time.time() * 1000) - gen_time
-                            if latency_ms >= 0:
-                                LATENCY_HISTOGRAM.observe(latency_ms)
-                        except ValueError:
-                            pass
-            
-            
-            print(f"✅ Processed Order: {record.get('order_id')} | Tenant: {record.get('tenant_id')} | Price: ${record.get('total_price')} | Loyalty Pts: {record.get('loyalty_points')}")
-                
+                batch_records.clear()
+                batch_msgs.clear()
     except KeyboardInterrupt:
         pass
     finally:
