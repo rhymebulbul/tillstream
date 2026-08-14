@@ -3,7 +3,7 @@
 </h1>
 
 <p align="center">
-  <b>A FAANG-Grade Real-Time Data Platform with Autonomous Agentic Self-Healing</b>
+  <b>A Real-Time Data Streaming Platform with Autonomous Agentic Self-Healing</b>
 </p>
 
 <p align="center">
@@ -21,7 +21,7 @@
 
 **TillStream** is a massively scalable, multi-tenant Data Streaming Platform designed to process High-Throughput Point-of-Sale (POS) transactions. It combines traditional Data Engineering best practices (decoupled streams, strict schema governance, lakehouse analytics) with cutting-edge **Agentic GenAI** to autonomously heal data pipelines in real-time.
 
-### 🌟 Key Highlights for Hiring Managers
+### Key Features
 - **Extreme Throughput:** Synthetic Golang generators capable of simulating 100k+ TPS across hundreds of multi-tenant retail stores.
 - **Strict Data Contracts:** Confluent Schema Registry strictly enforces Avro payload structures, preventing upstream software bugs from polluting the Data Lake.
 - **Modern Lakehouse Architecture:** PySpark Structured Streaming micro-batching into Apache Iceberg on MinIO/S3, querying via Trino (Presto).
@@ -32,13 +32,15 @@
 
 ## 📸 Architecture & Action
 
-### 1. High-Level Architecture
-> *Place a screenshot of the system architecture diagram here.*
-![Architecture Diagram](docs/assets/architecture.png)
+### The Agentic DLQ Resolver in Action
 
-### 2. The Agentic DLQ Resolver in Action
-> *Place a screenshot of the terminal where the Agent generated the code, executed it, and healed the Kafka message here.*
-![Agentic Healing](docs/assets/agent_healing.png)
+> The agent detects a corrupted DLQ message, prompts a local Ollama LLM, and generates a `fix_payload()` function in real-time:
+
+![Agent generating repair code via local LLM](docs/assets/agent-healing-codegen.png)
+
+> The generated code executes in a sandbox, coerces the data types, re-serializes to Avro, and replays the healed message:
+
+![Agent successfully self-healing the pipeline](docs/assets/agent-healing-success.png)
 
 ---
 
@@ -56,7 +58,7 @@
 - **Apache Iceberg**: PySpark micro-batches the validated Kafka streams into a scalable, ACID-compliant Lakehouse format.
 
 ### 4. Agentic Repair Layer (Autonomous AI)
-- `agents/dlq_resolver.py`: The crown jewel of the platform. Instead of paging a Data Engineer at 2 AM, this Agent reads corrupted hex payloads from the DLQ, prompts an LLM (local Qwen Coder or cloud Gemini), dynamically generates `fix_payload(raw_bytes)` code, executes the mutation in a sandbox, and replays the corrected data back into the pipeline.
+- `agents/dlq_resolver.py`: Instead of paging a Data Engineer at 2 AM, this autonomous Agent reads corrupted hex payloads from the DLQ, prompts an LLM (local Qwen Coder or cloud Gemini), dynamically generates `fix_payload(raw_bytes)` code, executes the mutation in a sandbox, and replays the corrected data back into the pipeline.
 
 ---
 
@@ -81,16 +83,16 @@ See [`agents/README.md`](agents/README.md) for full, copy-pasteable instructions
 
 ## 📚 Technical Design Documents
 
-For deep-dives into the engineering decisions, trade-offs, and FAANG-level system designs, see the `docs/design` directory:
+For deep-dives into the engineering decisions and trade-offs, see the `docs/design` directory:
 
-1. [High-Level Architecture](docs/design/01_high_level_architecture.md)
-2. [Data Governance & Schema Evolution](docs/design/02_data_governance_schema.md)
-3. [Producer/Consumer Patterns & Scaling](docs/design/03_producer_consumer_patterns.md)
-4. [Lakehouse & Analytics](docs/design/04_lakehouse_analytics.md)
-5. [Observability & MLOps](docs/design/05_observability_mlops.md)
+1. [High-Level Architecture](docs/design/01-high-level-architecture.md)
+2. [Data Governance & Schema Evolution](docs/design/02-data-governance-and-schemas.md)
+3. [Producer/Consumer Patterns & Scaling](docs/design/03-producer-consumer-patterns.md)
+4. [Lakehouse & Analytics](docs/design/04-lakehouse-and-analytics.md)
+5. [Observability & MLOps](docs/design/05-observability-and-mlops.md)
 
 ---
 
 <p align="center">
-  <i>Built to demonstrate the bridge between high-throughput Data Engineering and autonomous AI.</i>
+  <i>High-throughput Data Engineering meets autonomous AI-driven pipeline recovery.</i>
 </p>
