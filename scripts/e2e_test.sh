@@ -3,8 +3,10 @@ set -e
 
 echo "🚀 Starting E2E Smoke Test for TillStream..."
 
+# Navigate to project root
+cd "$(dirname "$0")/.."
+
 # 1. Spin up infra
-cd ../infra
 docker-compose up -d
 echo "⏳ Waiting for Kafka and Schema Registry to be ready (30s)..."
 sleep 30
