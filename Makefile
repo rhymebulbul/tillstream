@@ -34,4 +34,4 @@ load-test: ## Run the K6 load test benchmark
 
 benchmark: ## Run the standalone metric calculation benchmarks
 	docker run --rm -v $$(pwd)/producers:/app -w /app golang:1.22 go run cmd/benchmark/main.go
-	./venv/bin/python benchmark/llm_cache_benchmark.py
+	docker run --rm -v $$(pwd):/app -w /app python:3.10 bash -c "pip install requests google-generativeai > /dev/null 2>&1 && python benchmark/llm_cache_benchmark.py"
