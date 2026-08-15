@@ -20,7 +20,7 @@ up-apps: ## Spin up ONLY the apps (Producer, Consumer)
 test: test-go test-python ## Run all unit and integration tests across Go and Python
 
 test-go: ## Run Golang unit tests
-	cd producers && go test ./...
+	docker run --rm -v $$(pwd)/producers:/app -w /app golang:1.22 go test ./...
 
 test-python: ## Run Python unit and integration tests
 	cd agents && pytest test_dlq_resolver.py
@@ -33,5 +33,5 @@ load-test: ## Run the K6 load test benchmark
 	k6 run load-test/k6-script.js
 
 benchmark: ## Run the standalone metric calculation benchmarks
-	cd producers && go run cmd/benchmark/main.go
+	docker run --rm -v $$(pwd)/producers:/app -w /app golang:1.22 go run cmd/benchmark/main.go
 	./venv/bin/python benchmark/llm_cache_benchmark.py
