@@ -13,6 +13,7 @@
   <img src="https://img.shields.io/badge/PySpark-3.5-E25A1C?style=for-the-badge&logo=apachespark&logoColor=white" />
   <img src="https://img.shields.io/badge/Apache_Iceberg-Lakehouse-0081C6?style=for-the-badge" />
   <img src="https://img.shields.io/badge/Agentic_AI-Local_LLMs-FF6F00?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=for-the-badge" />
 </p>
 
 ---
@@ -21,8 +22,21 @@
 
 **TillStream** is a massively scalable, multi-tenant Data Streaming Platform designed to process High-Throughput Point-of-Sale (POS) transactions. It combines traditional Data Engineering best practices (decoupled streams, strict schema governance, lakehouse analytics) with cutting-edge **Agentic GenAI** to autonomously heal data pipelines in real-time.
 
+```mermaid
+graph TD
+    A[Golang POS Simulators<br/>100k+ TPS] -->|Avro over TCP| B(Kafka KRaft Broker)
+    B --> C{Confluent Schema Registry}
+    C -->|Schema Valid| D[PySpark Structured Streaming]
+    D --> E[(Apache Iceberg Lakehouse)]
+    C -->|Schema Violation| F[Dead Letter Queue]
+    F --> G[Agentic AI Microservice<br/>Ollama/Gemini]
+    G -->|Generates Python Fix| H((Code Sandbox))
+    H -->|Healed Data Replay| B
+```
+
 ### Key Features
-- **Extreme Throughput:** Synthetic Golang generators capable of simulating 100k+ TPS across hundreds of multi-tenant retail stores.
+- **Zero-Touch Pipeline Healing (Business Impact):** Reduces Data Engineering on-call paging by autonomously resolving schema drift and data corruption in the DLQ.
+- **Extreme Throughput:** Synthetic Golang generators capable of simulating **100,000+ Transactions Per Second (TPS)** across hundreds of multi-tenant retail stores *(Benchmarked locally on standard consumer hardware).*
 - **Strict Data Contracts:** Confluent Schema Registry strictly enforces Avro payload structures, preventing upstream software bugs from polluting the Data Lake.
 - **Modern Lakehouse Architecture:** PySpark Structured Streaming micro-batching into Apache Iceberg on MinIO/S3, querying via Trino (Presto).
 - **Agentic AI Self-Healing:** An autonomous microservice powered by **Local LLMs (Qwen/Llama) & Gemini Pro** that intercepts schema violations in the Dead Letter Queue (DLQ), dynamically generates remediation Python code in a secure sandbox, and self-heals the pipeline without human intervention.
