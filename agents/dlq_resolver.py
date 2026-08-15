@@ -8,6 +8,69 @@ from confluent_kafka import Consumer, Producer
 from confluent_kafka.schema_registry import SchemaRegistryClient
 import google.generativeai as genai
 
+import requests
+from functools import lru_cache
+
+@lru_cache(maxsize=1024)
+def get_llm_fix_code(error_msg, raw_payload, schema_str):
+    ollama_model = os.environ.get("OLLAMA_MODEL")
+    api_key = os.environ.get("GEMINI_API_KEY")
+    
+    prompt = f"""
+    You are an autonomous data engineering agent.
+    A message failed Avro deserialization.
+    Error: {error_msg}
+    Schema: {schema_str}
+    Raw Payload (hex): {raw_payload.hex()}
+    
+    Write a Python function `fix_payload(raw_bytes)` that takes the raw bytes, 
+    extracts the JSON data (skipping the 5-byte avro header), fixes the type 
+    coercion issue (e.g. string to float), and returns a dictionary matching the schema.
+    Output ONLY the python code without markdown formatting. Do not include ```python or ``` tags.
+    """
+    
+    if ollama_model:
+        print(f"🤖 Using Local Ollama Model: {ollama_model}")
+        try:
+            response = requests.post('http://host.docker.internal:11434/api/generate', json={
+                "model": ollama_model,
+                "prompt": prompt,
+                "stream": False
+            })
+            if response.status_code == 200:
+                return response.json()['response'].strip().replace("```python", "").replace("```", "")
+            else:
+                print(f"Ollama error: {response.text}")
+        except Exception as e:
+            try:
+                response = requests.post('http://localhost:11434/api/generate', json={
+                    "model": ollama_model,
+                    "prompt": prompt,
+                    "stream": False
+                })
+                if response.status_code == 200:
+                    return response.json()['response'].strip().replace("```python", "").replace("```", "")
+            except Exception as e2:
+                print(f"Failed to connect to local Ollama instance: {e2}")
+    
+    if api_key:
+        print("🤖 Using Google Gemini 1.5 Pro")
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-1.5-pro')
+        response = model.generate_content(prompt)
+        return response.text.strip().replace("```python", "").replace("```", "")
+    else:
+        print("🤖 Using Simulated LLM Fallback (No API Keys provided)")
+        return """
+import json
+def fix_payload(raw_bytes):
+    json_str = raw_bytes[5:].decode('utf-8')
+    data = json.loads(json_str)
+    if isinstance(data.get('total_price'), str):
+        data['total_price'] = float(data['total_price'])
+    return data
+"""
+
 def main():
     # Setup Kafka Connections
     kafka_broker = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:29092")
