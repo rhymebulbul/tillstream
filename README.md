@@ -106,6 +106,7 @@ For deep-dives into the engineering decisions and trade-offs, see the `docs/desi
 4. [Lakehouse & Analytics](docs/design/04-lakehouse-and-analytics.md)
 5. [Observability & MLOps](docs/design/05-observability-and-mlops.md)
 6. [Security & Compliance (AI Sandboxing & GDPR)](docs/design/06-security-and-compliance.md)
+7. [Metrics & Benchmark Calculations](docs/design/07-metrics-and-calculations.md)
 
 ---
 
