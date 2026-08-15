@@ -25,8 +25,9 @@
 ```mermaid
 graph TD
     A[Golang POS Simulators<br/>100k+ TPS] -->|Avro over TCP| B(Kafka KRaft Broker)
-    B --> C{Confluent Schema Registry}
-    C -->|Schema Valid| D[PySpark Structured Streaming]
+    B --> C{Python Validation Consumer}
+    C -.->|Fetches Schema| SR[(Confluent Schema Registry)]
+    C -->|Valid Records| D[PySpark Structured Streaming]
     D --> E[(Apache Iceberg Lakehouse)]
     C -->|Schema Violation| F[Dead Letter Queue]
     F --> G[Agentic AI Microservice<br/>Ollama/Gemini]
