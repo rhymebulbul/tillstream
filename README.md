@@ -39,6 +39,7 @@ graph TD
 - **Zero-Touch Pipeline Healing (Business Impact):** Reduces Data Engineering on-call paging by autonomously resolving schema drift and data corruption in the DLQ.
 - **Extreme Throughput:** Synthetic Golang generators capable of simulating **100,000+ Transactions Per Second (TPS)** across hundreds of multi-tenant retail stores *(Benchmarked locally on standard consumer hardware).*
 - **Strict Data Contracts:** Confluent Schema Registry strictly enforces Avro payload structures, preventing upstream software bugs from polluting the Data Lake.
+- **Enterprise Security & AI Sandboxing:** GDPR-compliant in-stream PII masking (SHA-256) and strict Zero-Trust execution sandboxes to protect the agentic microservice against Prompt Injection and RCE attacks.
 - **Modern Lakehouse Architecture:** PySpark Structured Streaming micro-batching into Apache Iceberg on MinIO/S3, querying via Trino (Presto).
 - **Agentic AI Self-Healing:** An autonomous microservice powered by **Local LLMs (Qwen/Llama) & Gemini Pro** that intercepts schema violations in the Dead Letter Queue (DLQ), dynamically generates remediation Python code in a secure sandbox, and self-heals the pipeline without human intervention.
 - **MLOps & Observability:** Integrated Prometheus latency tracking and data drift monitoring.
@@ -101,6 +102,7 @@ For deep-dives into the engineering decisions and trade-offs, see the `docs/desi
 3. [Producer/Consumer Patterns & Scaling](docs/design/03-producer-consumer-patterns.md)
 4. [Lakehouse & Analytics](docs/design/04-lakehouse-and-analytics.md)
 5. [Observability & MLOps](docs/design/05-observability-and-mlops.md)
+6. [Security & Compliance (AI Sandboxing & GDPR)](docs/design/06-security-and-compliance.md)
 
 ---
 
