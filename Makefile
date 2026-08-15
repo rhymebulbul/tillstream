@@ -31,3 +31,7 @@ e2e: ## Run the End-to-End smoke test
 
 load-test: ## Run the K6 load test benchmark
 	k6 run load-test/k6-script.js
+
+benchmark: ## Run the standalone metric calculation benchmarks
+	cd producers && go run cmd/benchmark/main.go
+	./venv/bin/python benchmark/llm_cache_benchmark.py
