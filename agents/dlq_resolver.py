@@ -61,11 +61,15 @@ def main():
             
             print("\n🧪 Executing code in sandbox...")
             local_env = {}
-            exec(code, globals(), local_env)
-            fix_func = local_env['fix_payload']
-            
-            # Execute the LLM's generated function
-            fixed_dict = fix_func(payload)
+            try:
+                exec(code, globals(), local_env)
+                fix_func = local_env['fix_payload']
+                
+                # Execute the LLM's generated function
+                fixed_dict = fix_func(payload)
+            except Exception as e:
+                print(f"❌ AI Hallucination or Sandbox Error! Failed to execute generated code: {e}")
+                continue
             
             print(f"✅ Payload successfully mutated! Re-serializing to Avro...")
             bytes_writer = io.BytesIO()
