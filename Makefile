@@ -1,4 +1,4 @@
-.PHONY: help up down up-infra up-apps test test-go test-python e2e load-test
+.PHONY: help up down up-infra up-apps test test-go test-python e2e load-test benchmark
 
 help: ## Show this help menu
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
